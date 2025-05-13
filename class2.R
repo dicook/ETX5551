@@ -110,3 +110,51 @@ ggplot(wasps_lineup_lda, aes(x=LD1, y=LD2,
    facet_wrap(~.sample, ncol=4) +
    scale_colour_brewer(palette="Dark2") +
    theme(legend.position="none")
+
+# Model-based clustering
+library(mclust)
+load("data/penguins_sub.rda")
+animate_xy(penguins_sub[,1:4])
+animate_xy(penguins_sub[,1:4], col=penguins_sub$species)
+
+# Four clusters
+penguins_mc <- Mclust(penguins_sub[,1:4], 
+                      G=4, 
+                      modelNames = "VEE")
+penguins_mce <- mc_ellipse(penguins_mc)
+penguins_cl <- penguins_sub
+penguins_cl$cl <- factor(penguins_mc$classification)
+
+penguins_mc_data <- penguins_cl |>
+  select(bl:bm, cl) |>
+  mutate(type = "data") |>
+  bind_rows(bind_cols(penguins_mce$ell,
+                      type=rep("ellipse",
+                               nrow(penguins_mce$ell)))) |>
+  mutate(type = factor(type))
+
+animate_xy(penguins_mc_data[,1:4],
+           col=penguins_mc_data$cl,
+           pch=c(4, 20 )[as.numeric(penguins_mc_data$type)], 
+           axes="off")
+
+# Three clusters
+penguins_mc <- Mclust(penguins_sub[,1:4], 
+                      G=3, 
+                      modelNames = "EEE")
+penguins_mce <- mc_ellipse(penguins_mc)
+penguins_cl <- penguins_sub
+penguins_cl$cl <- factor(penguins_mc$classification)
+
+penguins_mc_data <- penguins_cl |>
+  select(bl:bm, cl) |>
+  mutate(type = "data") |>
+  bind_rows(bind_cols(penguins_mce$ell,
+                      type=rep("ellipse",
+                               nrow(penguins_mce$ell)))) |>
+  mutate(type = factor(type))
+
+animate_xy(penguins_mc_data[,1:4],
+           col=penguins_mc_data$cl,
+           pch=c(4, 20)[as.numeric(penguins_mc_data$type)], 
+           axes="off")

@@ -119,3 +119,25 @@ bscols(
 
 # Clustering a blob
 # See the Fritz Leisch slides
+risk <- readRDS("data/risk_MSA.rds")
+colnames(risk) <- c("Rec", "Hea", "Car", "Fin", "Saf", "Soc")
+risk <- as.data.frame(risk)
+animate_xy(risk)
+
+risk_d  <- apply(risk, 2, function(x) (x-mean(x))/sd(x))
+
+# Clustering
+nc <- 2
+set.seed(1145)
+r_km <- kmeans(risk_d, centers=nc,
+               iter.max = 500, nstart = 5)
+
+r_km_d <- risk_d |>
+  as_tibble() |>
+  mutate(cl = factor(r_km$cluster)) |>
+  bind_cols(model.matrix(~ as.factor(r_km$cluster) - 1)) 
+colnames(r_km_d)[(ncol(r_km_d)-nc+1):ncol(r_km_d)] <- paste0("cluster", 1:nc)
+r_km_d <- r_km_d |>
+  mutate_at(vars(contains("cluster")), function(x) x+1)
+
+animate_xy(r_km_d[,1:6], col=r_km_d$cl)

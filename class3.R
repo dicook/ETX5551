@@ -11,6 +11,7 @@ library(plotly)
 library(viridis)
 
 load("data/penguins_sub.rda")
+animate_xy(penguins_sub[,1:4], col=penguins_sub$sex)
 
 # Model-based clustering
 penguins_BIC <- mclustBIC(penguins_sub[,1:4])
@@ -18,14 +19,6 @@ ggmc <- ggmcbic(penguins_BIC, cl=2:9, top=7) +
   scale_color_discrete_divergingx(palette = "Roma") +
   theme_minimal() 
 ggmc
-
-# Generate ellipses
-penguins_mc <- Mclust(penguins_sub[,1:4], 
-                      G=4, 
-                      modelNames = "VEE")
-penguins_mce <- mc_ellipse(penguins_mc)
-penguins_cl <- penguins_sub
-penguins_cl$cl <- factor(penguins_mc$classification)
 
 # Examine the four cluster solution
 penguins_mc <- Mclust(penguins_sub[,1:4], 
@@ -50,7 +43,7 @@ animate_xy(penguins_mc_data[,1:4],
 
 # Examine the three cluster solution
 penguins_mc <- Mclust(penguins_sub[,1:4], 
-                      G=3, 
+                      G=6, 
                       modelNames = "EEE")
 penguins_mce <- mc_ellipse(penguins_mc)
 penguins_cl <- penguins_sub

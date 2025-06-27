@@ -1,0 +1,363 @@
+---
+title: "ETX5551 Exam S1 2025 SOLUTION"
+author: "Instructor: Prof Di Cook"
+date: "2025-06-27"
+quarto-required: ">=1.6.0"
+format:
+    unilur-html+solution:
+        output-file: exam-solution.html
+        css: "assignment.css"
+        embed-resources: true
+unilur-solution: true
+---
+
+<!--
+## Objectives
+
+1. Recognising a high-d standard shape
+2. Dimension reduction: 
+    a. Number of dimensions
+    b. Plotting the result
+    c. Interpretation of coefficients
+    d. Model-in-the-data space
+3. Clustering:
+    a. Recognising number of clusters
+    b. Comparing two solutions
+    
+-->
+
+**As per [Monash's integrity rules](https://www.monash.edu/student-academic-success/learnhq/maintain-academic-integrity) this assignment needs to be completed independently and not shared beyond this class.**
+
+
+## 🔑 Instructions
+
+- This is an open book exam, and you are allowed to use any resources that you find helpful, including Generative AI. 
+- Write your answers into the solutions part of the `exam-solution.qmd` file provided, render and upload to your GitHub repo when finished.
+
+## Exercises
+
+```{r}
+#| echo: false
+#| message: false
+library(tidyverse)
+library(tourr)
+library(mulgar)
+library(geozoo)
+library(GGally)
+library(ggdendro)
+library(randomForest)
+library(classifly)
+library(DT)
+```
+
+
+### 1.  Warm-up (5pts)
+
+
+
+The simulated data in `c5551.rda` has 5 variables. What is its shape? Solid or hollow, sphere, cube, torus, hexagonal prism, ellipsoid, roman surface, or mobius strip? Explain your reasoning.
+
+::: unilur-solution
+
+```{r}
+#| echo: false
+#| eval: false
+#| code-summary: "Code to generate shape"
+set.seed(1054)
+c5551 <- torus.flat(p=6, n=5000)$points |>
+  as_tibble() |>
+  select(V6, V4, V2, V1, V3, V5) |>
+  rename(x1 = V6, x2 = V4, x3 = V2,
+         x4 = V1, x5 = V3, x6 = V5)
+save(c5551, file="data/c5551.rda")
+animate_xy(c5551)
+animate_slice(c5551)
+```
+
+```{r}
+#| code-fold: true
+#| eval: false
+load("data/c5551.rda")
+
+animate_xy(c5551)
+animate_slice(c5551)
+```
+
+This is a torus. 
+
+The shape seen in the projections are circular, sometimes with a hole in the middle. This rules out purely a sphere, cube or ellipsoid. The roman surface and mobius strip are only defined for 3D. A hexagomal prism wouldn't have a hole. 
+
+It is also not solid as can be seen when using a slice.
+
+:::
+
+### 2. Dimension reduction (25pts)
+
+The data `feats_all.rda` has a collection of data on 200 time series, common macroeconomic and microeconomic series, extracted from [A self-organizing, living library of time-series data](https://www.comp-engine.org). Each of the series has been converted to time series features, using the time series features available in the [feasts](https://feasts.tidyverts.org) package. These include measures of the trend, seasonality, autocorrelation, jumps and variance. There are 37 variables, all of which are features.
+
+
+
+##### a. (5pts) Using a grand tour on the full set of 37 variables, describe the structure of this data (e.g. outliers, clustering, linear association, non-linear association). *Ignore the variable named `type` for this exercise.*
+
+::: unilur-solution
+
+```{r}
+#| code-fold: true
+load("data/feats_all.rda")
+```
+
+
+```{r}
+#| code-fold: true
+#| eval: false
+animate_xy(feats_all[,1:37],
+           rescale=TRUE, 
+           axes="off",
+           half_range = 2)
+```
+
+There are 1-2 outliers, strong association, 3-4 differently shaped clusters.
+
+:::
+
+##### b. The plots (@fig-scree, @fig-scatmat) and table (@tbl-coefs) below summarise the principal component analysis of the data. The data containing the first five principal components is available in the `feats_pc_d.rda` dataset. *Ignore the variables named `type`, `cl2`, `cl3`, `cl4`, `cl5`, `cl6` for this exercise.*
+
+- (3pts) Explain why two principal components is not enough to summarise the variability in this data.
+- (2pts) Why would five principal components be a good choice?
+- (5pts) Using a grand tour to examine the first five PCs. Describe the structure that is still present in the data when it is reduced from 37 variables to 5 (clustering, outliers, nonlinear association).
+- (5pts) There is an outlier in PC4. On which of the time series features (`trend_strength`, ..., `stat_arch_lm`) does this time series have high values? So how would the time series of this point appear (strong trend, seasonality, peaks, spikiness, ...) ? 
+
+```{r}
+#| echo: false
+#| label: fig-scree
+#| fig-cap: "Scree plot of the principal component analysis of the economic time series features data."
+feats_pc <- prcomp(feats_all[,1:37], scale=TRUE)
+ggscree(feats_pc, q=37)
+```
+
+```{r}
+#| echo: false
+#| label: tbl-coefs
+#| tbl-cap: "Coefficients of the first five principal components."
+feats_coef <- feats_pc$rotation[,1:5]
+feats_pc_d <- feats_pc$x[,1:5] |>
+  as_tibble() |>
+  mutate(type = feats_all$type)
+
+datatable(feats_coef, 
+          options = list(pageLength = 40)) |> 
+  formatRound(columns=c('PC1', 'PC2', 'PC3', 
+                        'PC4', 'PC5'), digits=3)
+```
+
+```{r}
+#| echo: false
+#| label: fig-scatmat
+#| fig-cap: "Scatterplot matrix of the first five principal components of the economic time series features data."
+ggscatmat(feats_pc_d[,1:5])
+```
+
+```{r}
+#| echo: false
+# Clustering results
+feats_hc <- hclust(dist(feats_pc_d[,1:5]), method = "ward.D2")
+
+feats_pc_d <- feats_pc_d |>
+  mutate(
+    cl2 = factor(cutree(feats_hc, 2)),
+    cl3 = factor(cutree(feats_hc, 3)),
+    cl4 = factor(cutree(feats_hc, 4)),
+    cl5 = factor(cutree(feats_hc, 5)),
+    cl6 = factor(cutree(feats_hc, 6)))
+
+save(feats_pc_d, file="data/feats_pc_d.rda")
+```
+
+::: unilur-solution
+Two principal components is not enough because there is substantially more variance explained in the next few. Also, the structure that we saw, outliers and clustering cannot be seen in only two PCs.
+
+Five principal components all explain more variance than would be expected if the data was fully 37-D. Possibly six would be reasonable to use also, becaause there is a drop/elbow there, and then variance explained tapers off slowly.
+
+With five principal components we can still see an outlier, some clustering but not the linear dependence but the non-linear dependence is still visible.
+
+PC4 has large negative coefficients for `shift_var_max`, `shift_level_max` and `spikiness`. Because the outlier is on the bottom end, the double negative says that it is anoutlier because it has high values on these variables. This could be interesting series: spiky, and maybe shifting up and down.
+:::
+
+##### c. (5pts) If you were to make a 5D model and overlay it on the data in 5D, how well do you anticipate it fits? Good fit, poor fit, with reasons.
+
+::: unilur-solution
+The PCA model is essentially a box. But this data has wildly different variance patterns, that do not match a box. 
+:::
+
+### 3. (25pts) Clustering
+
+This question uses the time series features data also. Below is the dendrogram of hierarchical clustering conducted on the first five principal components. 
+
+```{r}
+#| echo: false
+#| label: fig-dendro
+#| fig-cap: "Dendrogram summarising the hierarchical clustering of the first five principal components of the time series features data."
+ggdendrogram(feats_hc)
+```
+
+##### a. (3pts) Based on the dendrogram, how many clusters would you suggest are reasonable to consider? Explain your answer.
+
+::: unilur-solution
+Anywhere from 2-10 clusters would be possibilities, but probably around 5 clusters might be best.
+:::
+
+##### b. (4pts) Cross-tabulate the two cluster solution `cl2` and the original type of series variable `type`. Using this table, and grand tour of the first five PCs, coloured by each of these two results, describe how they are similar or not.
+
+::: unilur-solution
+
+```{r}
+#| code-fold: true
+#| eval: false
+feats_pc_d |> 
+  count(type, cl2) |>
+  pivot_wider(names_from = cl2, values_from = n)
+```
+
+```{r}
+#| code-fold: true
+#| eval: false
+animate_xy(feats_pc_d[,1:5])
+animate_xy(feats_pc_d[,1:5],
+           col=feats_pc_d$type)
+animate_xy(feats_pc_d[,1:5],
+           col=feats_pc_d$cl2)
+```
+
+These results are not similar. The clustering divides the data into a small separated cluster and all the other points. The `type` variable has two very oddly shaped and not separated clusters.
+
+:::
+
+##### c. (8pts) Using the grand tour, and possibly a guided tour, come to a decision about which number of clusters (2, 3, 4, 5, or 6) is the best for this data.
+
+::: unilur-solution
+
+```{r}
+#| code-fold: true
+#| eval: false
+
+animate_xy(feats_pc_d[,1:5],
+           col=feats_pc_d$cl4)
+animate_xy(feats_pc_d[,1:5],
+           col=feats_pc_d$cl5)
+```
+
+Five clusters catches the two extended arms, the small separated cluster, the larger separated cluster, and the outlier. This is the neatest division of the data. 
+
+:::
+
+##### d. (5pts) Compare your best result with the original series `type`. Why would it be ideal for the final clustering to create clusters that were primarily one or other type? That is, the `macro` series are sub-divided into multiple clusters, but they mostly contain only `macro` series, and similarly `micro` series are broken into multiple clusters mostly only containing other `micro` series. Does your best result do this, or not? And if not, why is it still a reasonable result?
+
+::: unilur-solution
+
+```{r}
+#| code-fold: true
+#| eval: true
+feats_pc_d |> 
+  count(type, cl5) |>
+  pivot_wider(names_from = cl5, 
+              values_from = n, 
+              values_fill = 0)
+```
+
+The five cluster solution has some overlap of `macro` and `micro` in the first cluster, but very little in other clusters. This is the most reasonable result that keeps the two groups separated in the final result. The first cluster captures where the two arms join, so it could be unreasonable to expect the two types to be separable here, too.
+
+:::
+
+##### e. (5pts) Clustering was done on the first five principal components. Justify that this was a good choice for this data, given the structure that you described  in 2a from the initial visualisation of the full 37-dimensional space?
+
+::: unilur-solution
+Clustering algorithms are affected by nuisance variables, which is variables that have no clustering in them. When we examined the full data, there was considerable linear dependence. This means that there are nuisance directions where the variables are strongly associated by clustering cannot be seen. The PCA if done well will have removed these dimensions but left the clustering intact.
+:::
+
+### 4. (5pts) For your best clustering result 
+
+- Remove any clusters that contain only one observation.
+- Use the random forest algorithm to build a model to predict the class. 
+
+Then answer either A or B
+
+A. Use the `explore` function of the `classifly` package to predict a full 5D cube of points, in order to examine the boundary or partitioning that the clustering has imposed on the data. With this display, and the summary of variable importance, explain which principal components contribute to the difference/distinction between clusters. 
+
+B. Examine the votes matrix as a simplex. Along with the confusion matrix, describe which clusters are most likely confused with each other.
+
+Make sure to include a picture to support your arguments.
+
+::: unilur-solution
+
+The boundary is quite difficult. It is a little easier to examine it with the scatterplot matrix, to obtain a sense of how the clusters fall along which principal components. 
+
+```{r}
+#| code-fold: true
+feats_pc_d_sub <- feats_pc_d |>
+  filter(cl5 != 5) |>
+  mutate(cl5 = factor(cl5))
+feats_rf <- randomForest(cl5~PC1+PC2+PC3+PC4+PC5,
+                         data=feats_pc_d_sub,
+                         importance=TRUE)
+feats_explore <- explore(feats_rf, 
+                         feats_pc_d_sub, 
+                         n=1000)
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+animate_slice(feats_explore[feats_explore$.TYPE == "simulated",1:5], 
+  col = feats_explore$cl5[feats_explore$.TYPE == "simulated"])
+```
+
+```{r}
+# Just simulated points
+feats_e_sub <- feats_explore[feats_explore$.TYPE == "simulated",]
+ggscatmat(feats_e_sub, columns=1:5, 
+          color = "cl5", alpha=0.5)
+feats_rf$importance[,1:4]
+```
+
+We can see that 
+
+- clusters 2 and 4 are reasonable distinct in PC1
+- clusters 1 and 2 are mostly distinct in PC2. 
+- cluster 3 is distinct in PC2 and PC3. 
+
+From the slice tour we can see the distinctions but not easily how it matches the PCs.
+
+```{r}
+#| eval: false
+#| code-fold: true
+# Votes matrix
+proj <- t(geozoo::f_helmert(4)[-1,])
+feats_rf_v_p <- as.matrix(feats_rf$votes) %*% proj
+colnames(feats_rf_v_p) <- c("x1", "x2", "x3")
+feats_rf_v_p <- as_tibble(feats_rf_v_p) 
+simp <- geozoo::simplex(p=3)
+sp <- data.frame(simp$points)
+colnames(sp) <- c("x1", "x2", "x3")
+sp <- as_tibble(sp)
+feats_rf_v_p_s <- bind_rows(sp, feats_rf_v_p) |>
+  mutate(cl5 = factor(c(rep("simplex", 4),
+                        feats_pc_d_sub$cl5)))
+labels <- c("1", "2", "3", "4", rep("",199))
+animate_xy(feats_rf_v_p_s[,1:3], 
+           col=feats_rf_v_p_s$cl5,
+           axes = "off", 
+           edges = as.matrix(simp$edges),
+           obs_labels = labels)
+```
+
+![](exam-sol-Q4.png)
+
+```{r}
+feats_rf
+```
+
+- Cluster 3 is not confused with any other cluster. 
+- Cluster 4 is mostly distinct except for one point (hard to see from this projection) that is confused with cluster 1. (This could be an argument for having an additional cluster in the results where this point is in it's own cluster.)
+- Clusters 1 and 2 could be confused with other, often. 
+
+:::

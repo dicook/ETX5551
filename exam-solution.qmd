@@ -203,7 +203,7 @@ ggdendrogram(feats_hc)
 ##### a. (3pts) Based on the dendrogram, how many clusters would you suggest are reasonable to consider? Explain your answer.
 
 ::: unilur-solution
-Anywhere from 2-10 clusters would be possibilities, but probably around 5 clusters might be best.
+Anywhere from 2-10 clusters would be possibilities. Probably around 5 clusters might be best. At 5 clusters there is one point that is in its own cluster, and it might correspond to one of the big outliers.
 :::
 
 ##### b. (4pts) Cross-tabulate the two cluster solution `cl2` and the original type of series variable `type`. Using this table, and grand tour of the first five PCs, coloured by each of these two results, describe how they are similar or not.
@@ -212,7 +212,7 @@ Anywhere from 2-10 clusters would be possibilities, but probably around 5 cluste
 
 ```{r}
 #| code-fold: true
-#| eval: false
+load("data/feats_pc_d.rda")
 feats_pc_d |> 
   count(type, cl2) |>
   pivot_wider(names_from = cl2, values_from = n)
@@ -244,9 +244,53 @@ animate_xy(feats_pc_d[,1:5],
            col=feats_pc_d$cl4)
 animate_xy(feats_pc_d[,1:5],
            col=feats_pc_d$cl5)
+
+render_gif(feats_pc_d[,1:5],
+           grand_tour(), 
+           display_xy(col=feats_pc_d$cl3),
+           "gifs/feats_cl3.gif",
+           frames = 300)
+render_gif(feats_pc_d[,1:5],
+           grand_tour(), 
+           display_xy(col=feats_pc_d$cl4),
+           "gifs/feats_cl4.gif",
+           frames = 300)
+render_gif(feats_pc_d[,1:5],
+           grand_tour(), 
+           display_xy(col=feats_pc_d$cl5),
+           "gifs/feats_cl5.gif",
+           frames = 300)
+render_gif(feats_pc_d[,1:5],
+           grand_tour(), 
+           display_xy(col=feats_pc_d$cl6),
+           "gifs/feats_cl6.gif",
+           frames = 300)
 ```
+:::: {.columns}
+::: {.column}
+
+![](gifs/feats_cl3.gif)
+
+![](gifs/feats_cl5.gif)
+
+:::
+::: {.column}
+
+![](gifs/feats_cl4.gif)
+
+![](gifs/feats_cl6.gif)
+
+:::
+::::
 
 Five clusters catches the two extended arms, the small separated cluster, the larger separated cluster, and the outlier. This is the neatest division of the data. 
+
+More explanation: 
+
+- The three cluster solution is too coarse. It treats the small separated cluster as part of the large blob. And the outlier as part of a very dispersed cluster.
+- The four cluster solution is better because the small cluster is now one of the four (yellow). But the outlier is still grouped with the very dispersed cluster.
+- The five cluster solution separates the outlier into it's own group (red), which is a better solution, again.
+- The six cluster solution divides the large bunched group of points into three instead of two, and it could be reasonable also. But it's not clear that this division is useful because the way it partitions doesn't capture the arms going in three directions - it's a strange division of the points. It would be better to check how the 7, 8 or 9 cluster solution divided the data if we were to go as high as 6, one would need to probably go higher.
 
 :::
 
